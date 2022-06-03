@@ -8,7 +8,7 @@ class Player:
         self.states = []
         self.states_value = {}  # state -> value
         self.lr = learning_rate
-        self.decay_gamma = discount_factor
+        self.discount_factor = discount_factor
         self.exp_rate = exp_rate
         self.env = TictactoeEnv()
         
@@ -16,8 +16,10 @@ class Player:
         
     def act(self, grid, symbol):
         if np.random.uniform(0, 1) <= self.exp_rate:
+            #print("grid pre randam", grid)
             action = self.randomMove(grid)
         else:
+            #print("GRID :", grid)
             positions = self.availablePositions(grid)
             value_max = -999
             if symbol == 'X':
@@ -56,7 +58,7 @@ class Player:
         for state in reversed(self.states):
             if self.states_value.get(state) is None:
                 self.states_value[state] = 0
-            self.states_value[state] += self.lr*(self.decay_gamma*reward - self.states_value[state])
+            self.states_value[state] += self.lr*(self.discount_factor*reward - self.states_value[state])
             reward = self.states_value[state]
             
     def addState(self, state):
@@ -67,7 +69,6 @@ class Player:
         Turns = np.array(['X','O'])
         avg_reward = 0
         for i in range(N):
-            self.exp = i
             self.env.reset()
             grid, _, __ = self.env.observe()
             Turns = Turns[::-1]
@@ -76,15 +77,20 @@ class Player:
             for j in range(9):
                 if self.env.current_player == player_opt.player:
                     move = player_opt.act(grid)
+                    grid, end, winner = self.env.step(move, print_grid=False)
                 else:
+                    #print("grid 2", grid )
                     move = self.act(grid, Turns[1])
+                    grid, end, winner = self.env.step(move, print_grid=False)
+                    self.addState(self.env.grid.reshape(9))
 
-                grid, end, winner = self.env.step(move, print_grid=False)
-                self.addState(self.env.grid.reshape(9))
+                #grid, end, winner = self.env.step(move, print_grid=False)
+                #self.addState(self.env.grid.reshape(9))
+                #print("states", self.states)
             
                 if end:
                     if i%print_every == 0:
-                        print("Game n°:", i, "exp :", self.exp)
+                        print("Game n°:", i, "exp :", self.exp_rate)
                         print('-------------------------------------------')
                         print('Game end, winner is player ' + str(winner))
                         print('Optimal player = ' +  Turns[0])
@@ -95,6 +101,7 @@ class Player:
                     reward = self.env.reward(Turns[1])
                     avg_reward += reward
                     self.update_qtable(reward)
+                    self.states = []
                     self.env.reset()
                     break
                     
@@ -127,17 +134,16 @@ class Player:
                     break
                     
         return (n_wins-n_loss)/N_test
-
-#TRAIN PARAMETERS
+ 
+#TRAIN
 learning_rate = 0.05
 discount_factor = 0.99
 exp_rate = 0.5
-optimal_eps_train = 1.
+optimal_eps_train = 0.5
 
-my_player = Player(learning_rate, discount_factor, lim_exp)
+my_player = Player(learning_rate, discount_factor, exp_rate)
 
-#TRAIN
-games_to_train = 6000
+games_to_train = 20000
 print_every = 250
 my_player.train(games_to_train, optimal_eps_train, print_every)
 
